@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>마성비 계산기 · 대한항공 마일리지</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0F1B2E;
+    --surface:#16243D;
+    --surface-2:#1D2E4A;
+    --line: rgba(233,238,245,0.10);
+    --line-strong: rgba(233,238,245,0.22);
+    --text:#E9EEF5;
+    --text-dim: #9BA9C2;
+    --gold:#C9A661;
+    --gold-soft: rgba(201,166,97,0.18);
+    --good:#4FB0A5;
+    --good-bg: rgba(79,176,165,0.14);
+    --bad:#D9765F;
+    --bad-bg: rgba(217,118,95,0.14);
+    --stub:#EDE6D6;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      radial-gradient(1200px 600px at 15% -10%, rgba(201,166,97,0.08), transparent 60%),
+      radial-gradient(900px 500px at 100% 0%, rgba(79,176,165,0.06), transparent 55%),
+      var(--ink);
+    color:var(--text);
+    font-family:'Inter', sans-serif;
+    min-height:100vh;
+    padding: 28px 18px 80px;
+  }
+  .wrap{max-width:1040px;margin:0 auto;}
+
+  header.hero{
+    position:relative;
+    border:1px solid var(--line-strong);
+    border-radius:16px;
+    background: linear-gradient(135deg, var(--surface) 0%, var(--surface-2) 100%);
+    padding: 28px 26px;
+    margin-bottom:22px;
+    overflow:hidden;
+  }
+  header.hero::after{
+    content:"";
+    position:absolute; right:-40px; top:-40px;
+    width:220px; height:220px;
+    background: repeating-linear-gradient(90deg, var(--gold-soft) 0 2px, transparent 2px 14px);
+    opacity:0.5; transform:rotate(12deg);
+    pointer-events:none;
+  }
+  .eyebrow{
+    font-family:'IBM Plex Mono', monospace;
+    letter-spacing:.14em;
+    text-transform:uppercase;
+    font-size:11.5px;
+    color:var(--gold);
+    display:flex; align-items:center; gap:10px;
+    margin-bottom:10px;
+  }
+  .eyebrow::before{content:"✈";font-size:13px;}
+  h1{
+    font-family:'Archivo', sans-serif;
+    font-weight:800;
+    font-size: clamp(26px, 4vw, 34px);
+    margin:0 0 8px;
+    letter-spacing:-0.01em;
+  }
+  header.hero p{
+    margin:0; color:var(--text-dim); font-size:14.5px; line-height:1.6; max-width:62ch;
+  }
+
+  .panel{
+    border:1px solid var(--line);
+    background: var(--surface);
+    border-radius:14px;
+    padding:18px 18px 8px;
+    margin-bottom:18px;
+  }
+  .controls-row{
+    display:flex; flex-wrap:wrap; gap:14px; align-items:flex-end;
+    margin-bottom:14px;
+  }
+  .field{display:flex; flex-direction:column; gap:6px;}
+  .field label{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--text-dim);
+  }
+  .seg{
+    display:inline-flex; border:1px solid var(--line-strong); border-radius:10px; overflow:hidden;
+  }
+  .seg button{
+    font-family:'IBM Plex Mono', monospace;
+    background:transparent; border:none; color:var(--text-dim);
+    padding:9px 13px; font-size:12.5px; cursor:pointer; white-space:nowrap;
+    border-right:1px solid var(--line);
+    transition: all .15s ease;
+  }
+  .seg button:last-child{border-right:none;}
+  .seg button.active{ background: var(--gold-soft); color: var(--gold); font-weight:600; }
+  .seg button:hover:not(.active){ background: rgba(233,238,245,0.05); color:var(--text); }
+
+  input[type="text"], input[type="number"]{
+    background: rgba(255,255,255,0.03);
+    border:1px solid var(--line-strong);
+    color:var(--text);
+    border-radius:9px;
+    padding:9px 11px;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:13px;
+    outline:none;
+  }
+  input[type="text"]:focus, input[type="number"]:focus{ border-color: var(--gold); }
+  input[type="text"]::placeholder, input[type="number"]::placeholder{ color: rgba(155,169,194,0.6); }
+
+  .search-field input{ width:220px; }
+
+  table{ width:100%; border-collapse:collapse; }
+  thead th{
+    position:sticky; top:0;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px; letter-spacing:.06em; text-transform:uppercase;
+    color:var(--text-dim); text-align:left;
+    padding:10px 8px; border-bottom:1px solid var(--line-strong);
+    background: var(--surface);
+    cursor:pointer; user-select:none;
+    white-space:nowrap;
+  }
+  thead th.sortable:hover{ color:var(--text); }
+  thead th .arrow{ font-size:10px; margin-left:4px; opacity:.7; }
+  tbody tr{ border-bottom:1px dashed var(--line); }
+  tbody tr:hover{ background: rgba(255,255,255,0.02); }
+  td{ padding:9px 8px; font-size:13.5px; vertical-align:middle; }
+  td.region{ color:var(--text-dim); font-size:11.5px; font-family:'IBM Plex Mono', monospace; }
+  td.route{ font-weight:600; }
+  td.mono, td input{ font-family:'IBM Plex Mono', monospace; }
+  td.mileage input{ width:78px; text-align:right; }
+  td.price input{ width:108px; text-align:right; }
+  td.cpm{ font-family:'IBM Plex Mono', monospace; font-weight:700; text-align:right; white-space:nowrap; }
+  td.cpm .unit{ font-weight:400; color:var(--text-dim); font-size:11px; margin-left:3px;}
+  .badge-good{ background:var(--good-bg); color:var(--good); border-radius:7px; padding:2px 7px; }
+  .badge-bad{ background:var(--bad-bg); color:var(--bad); border-radius:7px; padding:2px 7px; }
+  .empty-cpm{ color: rgba(155,169,194,0.4); font-family:'IBM Plex Mono', monospace; font-size:12px;}
+
+  .table-scroll{ overflow-x:auto; }
+
+  /* Boarding pass stub summary */
+  .stub{
+    display:flex; align-items:stretch;
+    border:1px solid var(--line-strong);
+    border-radius:14px;
+    overflow:hidden;
+    margin-bottom:18px;
+    background: linear-gradient(90deg, var(--stub) 0%, var(--stub) 100%);
+    color:#20293A;
+  }
+  .stub-main{ flex:1; padding:18px 20px; position:relative;}
+  .stub-main .eyebrow2{
+    font-family:'IBM Plex Mono', monospace; font-size:10.5px; letter-spacing:.12em;
+    text-transform:uppercase; color:#8a7a53; margin-bottom:6px;
+  }
+  .stub-main .best-route{ font-family:'Archivo', sans-serif; font-weight:800; font-size:22px; margin:0 0 4px;}
+  .stub-main .best-sub{ font-family:'IBM Plex Mono', monospace; font-size:12.5px; color:#5b5340; }
+  .stub-divider{
+    width:0; border-left: 2px dashed rgba(32,41,58,0.35);
+    position:relative;
+  }
+  .stub-divider::before, .stub-divider::after{
+    content:""; position:absolute; left:-9px; width:18px; height:18px;
+    background: var(--ink); border-radius:50%;
+  }
+  .stub-divider::before{ top:-9px; }
+  .stub-divider::after{ bottom:-9px; }
+  .stub-value{
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    padding: 18px 26px; min-width:150px;
+    font-family:'IBM Plex Mono', monospace;
+  }
+  .stub-value .num{ font-size:26px; font-weight:700; }
+  .stub-value .lbl{ font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; color:#5b5340; margin-top:4px;}
+
+  .hint{ color:var(--text-dim); font-size:12px; margin: 6px 2px 16px; line-height:1.6; }
+  .hint b{ color:var(--text); font-weight:600; }
+
+  .add-row{
+    display:flex; gap:10px; flex-wrap:wrap; align-items:center;
+    padding:14px 4px 6px;
+    border-top:1px solid var(--line);
+    margin-top:6px;
+  }
+  .add-row input{ }
+  .add-row button{
+    font-family:'IBM Plex Mono', monospace; font-size:12px;
+    background: var(--gold-soft); color:var(--gold); border:1px solid rgba(201,166,97,0.4);
+    padding:9px 14px; border-radius:9px; cursor:pointer;
+  }
+  .add-row button:hover{ background: rgba(201,166,97,0.28); }
+
+  footer{
+    text-align:center; color: rgba(155,169,194,0.55); font-size:11.5px;
+    margin-top:26px; font-family:'IBM Plex Mono', monospace;
+  }
+
+  @media (max-width: 640px){
+    .stub{ flex-direction:column; }
+    .stub-divider{ display:none; }
+    td.route{ min-width:140px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="hero">
+    <div class="eyebrow">SKYPASS · COST PER MILE</div>
+    <h1>마성비 계산기</h1>
+    <p>대한항공 왕복 노선의 기본 적립 마일과 실제 항공권 가격을 넣으면, 마일리지 1마일을 얻는 데 든 원화 비용(원/마일)을 계산합니다. 숫자가 낮을수록 마일리지 적립 가성비가 좋은 것입니다.</p>
+  </header>
+
+  <div id="stubSummary"></div>
+
+  <div class="panel">
+    <div class="controls-row">
+      <div class="field">
+        <label>좌석 등급 · 적립 배수</label>
+        <div class="seg" id="classSeg">
+          <button data-mult="0.7">할인 이코노미 70%</button>
+          <button data-mult="1.0" class="active">일반운임 Y 100%</button>
+          <button data-mult="1.35">프레스티지 135%</button>
+          <button data-mult="1.8">일등석 180%</button>
+        </div>
+      </div>
+      <div class="field search-field">
+        <label>노선 검색</label>
+        <input type="text" id="searchInput" placeholder="예: 오사카, 하와이, 파리">
+      </div>
+    </div>
+
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th class="sortable" data-key="region">지역</th>
+            <th class="sortable" data-key="route">노선 (ICN 출발)</th>
+            <th class="sortable" data-key="mileage">왕복 기본마일<span class="arrow"></span></th>
+            <th>항공권 가격(원)</th>
+            <th class="sortable" data-key="cpm">원/마일<span class="arrow"></span></th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+
+    <div class="add-row">
+      <input type="text" id="newRegion" placeholder="지역 (예: 유럽)" style="width:100px">
+      <input type="text" id="newRoute" placeholder="노선명 (예: 인천-비엔나)" style="width:170px">
+      <input type="number" id="newMileage" placeholder="왕복 기본마일" style="width:120px">
+      <button onclick="addRoute()">+ 노선 직접 추가</button>
+    </div>
+  </div>
+
+  <p class="hint">
+    표의 <b>왕복 기본마일</b>은 실제 대권거리 기반 추정치이며 셀을 클릭해 직접 수정할 수 있습니다. 항공권 가격은 <b>왕복 실결제 총액(원)</b>을 넣어주세요 — 여러 명이 함께 예약했다면 1인당 금액 기준으로 넣는 걸 추천합니다. 원/마일이 초록색이면 현재 입력된 노선 중 상위 30% 가성비, 빨간색이면 하위 30%입니다.
+  </p>
+
+  <footer>KOREAN AIR · SKYPASS MILEAGE VALUE TOOL</footer>
+</div>
+
+<script>
+const ROUTES = [
+  {region:"국내", route:"인천-부산", mileage:430},
+  {region:"국내", route:"인천-제주", mileage:552},
+  {region:"일본", route:"인천-오사카(간사이)", mileage:1050},
+  {region:"일본", route:"인천-도쿄(나리타/하네다)", mileage:1516},
+  {region:"일본", route:"인천-후쿠오카", mileage:694},
+  {region:"일본", route:"인천-오이타(벳푸 인근)", mileage:802},
+  {region:"일본", route:"인천-나고야", mileage:1196},
+  {region:"일본", route:"인천-삿포로", mileage:1740},
+  {region:"일본", route:"인천-오키나와", mileage:1570},
+  {region:"중국", route:"인천-베이징", mileage:1136},
+  {region:"중국", route:"인천-톈진", mileage:1130},
+  {region:"중국", route:"인천-상하이", mileage:1050},
+  {region:"중국", route:"인천-광저우", mileage:2538},
+  {region:"대만/홍콩", route:"인천-타이베이", mileage:1826},
+  {region:"대만/홍콩", route:"인천-홍콩", mileage:2596},
+  {region:"동남아", route:"인천-방콕", mileage:4572},
+  {region:"동남아", route:"인천-호치민", mileage:4560},
+  {region:"동남아", route:"인천-하노이", mileage:4154},
+  {region:"동남아", route:"인천-싱가포르", mileage:5766},
+  {region:"동남아", route:"인천-마닐라", mileage:3252},
+  {region:"동남아", route:"인천-발리(덴파사르)", mileage:6398},
+  {region:"중동", route:"인천-두바이", mileage:9360},
+  {region:"유럽", route:"인천-파리", mileage:11284},
+  {region:"유럽", route:"인천-프랑크푸르트", mileage:10886},
+  {region:"미주", route:"인천-로스앤젤레스", mileage:11936},
+  {region:"미주", route:"인천-샌프란시스코", mileage:11702},
+  {region:"미주", route:"인천-시애틀", mileage:10446},
+  {region:"미주", route:"인천-뉴욕(JFK)", mileage:13800},
+  {region:"미주", route:"인천-애틀랜타", mileage:14448},
+  {region:"미주", route:"인천-댈러스", mileage:13822},
+  {region:"미주", route:"인천-워싱턴 D.C.", mileage:13800},
+  {region:"미주", route:"인천-시카고", mileage:13088},
+  {region:"미주", route:"인천-밴쿠버", mileage:10432},
+  {region:"미주", route:"인천-호놀룰루(하와이)", mileage:9060},
+  {region:"오세아니아", route:"인천-시드니", mileage:10326},
+  {region:"오세아니아", route:"인천-오클랜드", mileage:12022},
+  {region:"괌/사이판", route:"인천-괌", mileage:3988},
+];
+
+let state = ROUTES.map((r,i)=>({...r, id:i, price:null}));
+let classMult = 1.0;
+let sortKey = null;
+let sortDir = 1;
+let search = "";
+
+function fmt(n){ return n.toLocaleString('ko-KR'); }
+
+function computedRows(){
+  let rows = state.filter(r => r.route.includes(search) || r.region.includes(search));
+  rows = rows.map(r => {
+    const cpm = (r.price && r.price > 0) ? (r.price / (r.mileage * classMult)) : null;
+    return {...r, cpm};
+  });
+  if(sortKey){
+    rows.sort((a,b)=>{
+      let av = a[sortKey], bv = b[sortKey];
+      if(sortKey === 'cpm'){
+        if(av===null && bv===null) return 0;
+        if(av===null) return 1;
+        if(bv===null) return -1;
+      }
+      if(typeof av === 'string') return av.localeCompare(bv) * sortDir;
+      return (av - bv) * sortDir;
+    });
+  }
+  return rows;
+}
+
+function render(){
+  const rows = computedRows();
+  const valid = rows.filter(r=>r.cpm !== null).map(r=>r.cpm).sort((a,b)=>a-b);
+  const goodCut = valid.length ? valid[Math.floor(valid.length*0.3)] : null;
+  const badCut = valid.length ? valid[Math.ceil(valid.length*0.7)-1] : null;
+
+  const tbody = document.getElementById('tbody');
+  tbody.innerHTML = rows.map(r => {
+    let cpmCell;
+    if(r.cpm === null){
+      cpmCell = `<span class="empty-cpm">가격 입력 대기</span>`;
+    } else {
+      const val = Math.round(r.cpm);
+      let cls = '';
+      if(valid.length >= 4){
+        if(r.cpm <= goodCut) cls = 'badge-good';
+        else if(r.cpm >= badCut) cls = 'badge-bad';
+      }
+      cpmCell = cls ? `<span class="${cls}">${fmt(val)}</span><span class="unit">원/마일</span>` : `${fmt(val)}<span class="unit">원/마일</span>`;
+    }
+    return `
+      <tr>
+        <td class="region">${r.region}</td>
+        <td class="route">${r.route}</td>
+        <td class="mileage mono">
+          <input type="number" value="${r.mileage}" onchange="updateMileage(${r.id}, this.value)">
+        </td>
+        <td class="price">
+          <input type="number" placeholder="0" value="${r.price ?? ''}" onchange="updatePrice(${r.id}, this.value)">
+        </td>
+        <td class="cpm">${cpmCell}</td>
+      </tr>
+    `;
+  }).join('');
+
+  renderStub(rows);
+}
+
+function renderStub(rows){
+  const withPrice = rows.filter(r=>r.cpm !== null);
+  const el = document.getElementById('stubSummary');
+  if(withPrice.length === 0){
+    el.innerHTML = `
+      <div class="stub">
+        <div class="stub-main">
+          <div class="eyebrow2">BEST VALUE ROUTE</div>
+          <p class="best-route">아직 입력된 가격이 없어요</p>
+          <p class="best-sub">표에 항공권 가격을 입력하면 가장 가성비 좋은 노선이 여기 표시됩니다</p>
+        </div>
+      </div>`;
+    return;
+  }
+  const best = withPrice.reduce((a,b)=> a.cpm < b.cpm ? a : b);
+  el.innerHTML = `
+    <div class="stub">
+      <div class="stub-main">
+        <div class="eyebrow2">BEST VALUE ROUTE</div>
+        <p class="best-route">${best.route}</p>
+        <p class="best-sub">${best.region} · 왕복 ${fmt(best.mileage)}마일 · ${fmt(best.price)}원 입력됨</p>
+      </div>
+      <div class="stub-divider"></div>
+      <div class="stub-value">
+        <div class="num">${fmt(Math.round(best.cpm))}</div>
+        <div class="lbl">원 / 마일</div>
+      </div>
+    </div>
+  `;
+}
+
+function updateMileage(id, val){
+  const r = state.find(r=>r.id===id);
+  r.mileage = Number(val) || r.mileage;
+  render();
+}
+function updatePrice(id, val){
+  const r = state.find(r=>r.id===id);
+  r.price = Number(val) || null;
+  render();
+}
+function addRoute(){
+  const region = document.getElementById('newRegion').value.trim() || "직접추가";
+  const route = document.getElementById('newRoute').value.trim();
+  const mileage = Number(document.getElementById('newMileage').value);
+  if(!route || !mileage){ return; }
+  const id = Math.max(...state.map(r=>r.id)) + 1;
+  state.push({region, route, mileage, price:null, id});
+  document.getElementById('newRegion').value = '';
+  document.getElementById('newRoute').value = '';
+  document.getElementById('newMileage').value = '';
+  render();
+}
+
+document.getElementById('classSeg').addEventListener('click', (e)=>{
+  const btn = e.target.closest('button');
+  if(!btn) return;
+  document.querySelectorAll('#classSeg button').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  classMult = Number(btn.dataset.mult);
+  render();
+});
+
+document.getElementById('searchInput').addEventListener('input', (e)=>{
+  search = e.target.value.trim();
+  render();
+});
+
+document.querySelectorAll('th.sortable').forEach(th=>{
+  th.addEventListener('click', ()=>{
+    const key = th.dataset.key;
+    if(sortKey === key){ sortDir *= -1; } else { sortKey = key; sortDir = 1; }
+    document.querySelectorAll('th.sortable .arrow').forEach(a=>a.textContent='');
+    th.querySelector('.arrow').textContent = sortDir === 1 ? '▲' : '▼';
+    render();
+  });
+});
+
+render();
+</script>
+</body>
+</html>
