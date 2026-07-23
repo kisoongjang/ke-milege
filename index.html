@@ -235,6 +235,14 @@
           <button data-mult="1.8">일등석 180%</button>
         </div>
       </div>
+      <div class="field">
+        <label>카드 적립 (원당 마일)</label>
+        <div style="display:flex; align-items:center; gap:6px;">
+          <span style="font-family:'IBM Plex Mono', monospace; font-size:12.5px; color:var(--text-dim);">1,000원당</span>
+          <input type="number" id="cardRate" value="5" style="width:56px; text-align:center;">
+          <span style="font-family:'IBM Plex Mono', monospace; font-size:12.5px; color:var(--text-dim);">마일</span>
+        </div>
+      </div>
       <div class="field search-field">
         <label>노선 검색</label>
         <input type="text" id="searchInput" placeholder="예: 오사카, 하와이, 파리">
@@ -249,6 +257,9 @@
             <th class="sortable" data-key="route">노선 (ICN 출발)</th>
             <th class="sortable" data-key="mileage">왕복 기본마일<span class="arrow"></span></th>
             <th>항공권 가격(원)</th>
+            <th class="sortable" data-key="flightMiles">탑승 적립<span class="arrow"></span></th>
+            <th class="sortable" data-key="cardMiles">카드 적립<span class="arrow"></span></th>
+            <th class="sortable" data-key="totalMiles">총 적립마일<span class="arrow"></span></th>
             <th class="sortable" data-key="cpm">원/마일<span class="arrow"></span></th>
           </tr>
         </thead>
@@ -265,7 +276,7 @@
   </div>
 
   <p class="hint">
-    표의 <b>왕복 기본마일</b>은 실제 대권거리 기반 추정치이며 셀을 클릭해 직접 수정할 수 있습니다. 항공권 가격은 <b>왕복 실결제 총액(원)</b>을 넣어주세요 — 여러 명이 함께 예약했다면 1인당 금액 기준으로 넣는 걸 추천합니다. 원/마일이 초록색이면 현재 입력된 노선 중 상위 30% 가성비, 빨간색이면 하위 30%입니다.
+    표의 <b>왕복 기본마일</b>은 실제 대권거리 기반 추정치이며 셀을 클릭해 직접 수정할 수 있습니다. 항공권 가격은 <b>왕복 실결제 총액(원)</b>을 넣어주세요. <b>총 적립마일</b>은 (기본마일×좌석등급 배수)로 계산되는 <b>탑승 적립</b>에, (가격÷1,000원×카드 적립률)로 계산되는 <b>카드 적립</b>을 더한 값이며, 원/마일도 이 총 적립마일 기준으로 계산됩니다. 상단 "카드 적립" 값을 본인 카드 실제 적립률에 맞게 바꿔주세요. 초록색은 현재 입력된 노선 중 상위 30% 가성비, 빨간색은 하위 30%입니다.
   </p>
 
   <footer>KOREAN AIR · SKYPASS MILEAGE VALUE TOOL</footer>
@@ -314,6 +325,7 @@ const ROUTES = [
 
 let state = ROUTES.map((r,i)=>({...r, id:i, price:null}));
 let classMult = 1.0;
+let cardRate = 5;
 let sortKey = null;
 let sortDir = 1;
 let search = "";
@@ -323,8 +335,11 @@ function fmt(n){ return n.toLocaleString('ko-KR'); }
 function computedRows(){
   let rows = state.filter(r => r.route.includes(search) || r.region.includes(search));
   rows = rows.map(r => {
-    const cpm = (r.price && r.price > 0) ? (r.price / (r.mileage * classMult)) : null;
-    return {...r, cpm};
+    const flightMiles = Math.round(r.mileage * classMult);
+    const cardMiles = (r.price && r.price > 0) ? Math.floor(r.price / 1000) * cardRate : 0;
+    const totalMiles = flightMiles + cardMiles;
+    const cpm = (r.price && r.price > 0) ? (r.price / totalMiles) : null;
+    return {...r, flightMiles, cardMiles, totalMiles, cpm};
   });
   if(sortKey){
     rows.sort((a,b)=>{
@@ -371,6 +386,9 @@ function render(){
         <td class="price">
           <input type="number" placeholder="0" value="${r.price ?? ''}" onchange="updatePrice(${r.id}, this.value)">
         </td>
+        <td class="mono" style="text-align:right;">${fmt(r.flightMiles)}</td>
+        <td class="mono" style="text-align:right; color:var(--gold);">${r.cardMiles ? '+' + fmt(r.cardMiles) : '–'}</td>
+        <td class="mono" style="text-align:right; font-weight:700;">${fmt(r.totalMiles)}</td>
         <td class="cpm">${cpmCell}</td>
       </tr>
     `;
@@ -399,7 +417,7 @@ function renderStub(rows){
       <div class="stub-main">
         <div class="eyebrow2">BEST VALUE ROUTE</div>
         <p class="best-route">${best.route}</p>
-        <p class="best-sub">${best.region} · 왕복 ${fmt(best.mileage)}마일 · ${fmt(best.price)}원 입력됨</p>
+        <p class="best-sub">${fmt(best.price)}원 · 탑승 ${fmt(best.flightMiles)} + 카드 ${fmt(best.cardMiles)} = 총 ${fmt(best.totalMiles)}마일</p>
       </div>
       <div class="stub-divider"></div>
       <div class="stub-value">
@@ -439,6 +457,11 @@ document.getElementById('classSeg').addEventListener('click', (e)=>{
   document.querySelectorAll('#classSeg button').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
   classMult = Number(btn.dataset.mult);
+  render();
+});
+
+document.getElementById('cardRate').addEventListener('input', (e)=>{
+  cardRate = Number(e.target.value) || 0;
   render();
 });
 
