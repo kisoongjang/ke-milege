@@ -615,7 +615,6 @@ function render(){
   }).join('');
 
   renderStub(rows);
-  populateTripRouteSelect();
   renderTrips();
 }
 
@@ -699,14 +698,22 @@ function tripYear(t){
 
 function populateTripRouteSelect(){
   const sel = document.getElementById('tripRouteSelect');
+  if(!sel) return;
   const prevValue = sel.value;
-  const sorted = [...state].sort((a,b)=> a.region.localeCompare(b.region) || a.route.localeCompare(b.route));
-  sel.innerHTML = '<option value="">직접 입력</option>' +
-    sorted.map(r => {
-      const flightMiles = Math.round(r.mileage * classMult);
-      return `<option value="${r.id}">${r.region} · ${r.route} — ${fmt(flightMiles)}마일</option>`;
-    }).join('');
-  if(sorted.some(r=>String(r.id)===prevValue)) sel.value = prevValue;
+  try{
+    const sorted = [...state].sort((a,b)=>
+      String(a.region||'').localeCompare(String(b.region||'')) ||
+      String(a.route||'').localeCompare(String(b.route||''))
+    );
+    sel.innerHTML = '<option value="">직접 입력</option>' +
+      sorted.map(r => {
+        const flightMiles = Math.round((r.mileage||0) * classMult);
+        return `<option value="${r.id}">${r.region||'기타'} · ${r.route||'(이름없음)'} — ${fmt(flightMiles)}마일</option>`;
+      }).join('');
+    if(sorted.some(r=>String(r.id)===prevValue)) sel.value = prevValue;
+  }catch(e){
+    console.error('노선 목록 갱신 실패', e);
+  }
 }
 
 function renderTrips(){
@@ -806,6 +813,9 @@ document.getElementById('cardRate').addEventListener('input', (e)=>{
   saveState();
   render();
 });
+
+document.getElementById('tripRouteSelect').addEventListener('mousedown', populateTripRouteSelect);
+document.getElementById('tripRouteSelect').addEventListener('focus', populateTripRouteSelect);
 
 document.getElementById('tripRouteSelect').addEventListener('change', (e)=>{
   const id = e.target.value;
