@@ -685,14 +685,29 @@ function applyPayload(payload){
   if(typeof payload.cardRate === 'number') cardRate = payload.cardRate;
   if(typeof payload.awardPeople === 'number') awardPeople = payload.awardPeople;
   if(Array.isArray(payload.routes)){
-    const byId = new Map(payload.routes.map(r=>[r.id, r]));
-    state = state.map(r => byId.has(r.id) ? {...r, mileage: byId.get(r.id).mileage, price: byId.get(r.id).price} : r);
-    const defaultIds = new Set(state.map(r=>r.id));
-    payload.routes.forEach(r=>{
-      if(!defaultIds.has(r.id)){
-        state.push({id:r.id, region:r.region, route:r.route, mileage:r.mileage, price:r.price});
+    const nameKey = r => r.region + '|' + r.route;
+    let newState = [...state];
+
+    payload.routes.forEach(pr => {
+      // 1) exact id match (already using the current hash-id scheme)
+      const idIdx = newState.findIndex(r => r.id === pr.id);
+      if(idIdx !== -1){
+        newState[idIdx] = {...newState[idIdx], mileage: pr.mileage, price: pr.price};
+        return;
       }
+      // 2) name match against a known default route (handles data saved before the id scheme changed —
+      //    without this, old saved defaults get mistaken for new custom routes and duplicate)
+      const key = nameKey(pr);
+      const nameIdx = newState.findIndex(r => nameKey(r) === key);
+      if(nameIdx !== -1){
+        newState[nameIdx] = {...newState[nameIdx], price: pr.price};
+        return;
+      }
+      // 3) genuinely new custom route not seen before
+      newState.push({id: pr.id, region: pr.region, route: pr.route, mileage: pr.mileage, price: pr.price});
     });
+
+    state = newState;
   }
   if(Array.isArray(payload.trips)){
     tripState = payload.trips;
