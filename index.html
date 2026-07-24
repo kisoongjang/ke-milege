@@ -301,7 +301,15 @@
   </header>
 
   <div class="panel">
-    <div class="add-row" style="border-top:none; padding-top:4px;">
+    <div class="add-row" style="border-top:none; padding-top:4px; padding-bottom:0;">
+      <div class="field" style="gap:6px;">
+        <label>위 표에서 노선 가져오기</label>
+        <select id="tripRouteSelect" style="background: rgba(255,255,255,0.03); border:1px solid var(--line-strong); color:var(--text); border-radius:9px; padding:9px 11px; font-family:'IBM Plex Mono', monospace; font-size:12.5px; width:260px;">
+          <option value="">직접 입력</option>
+        </select>
+      </div>
+    </div>
+    <div class="add-row" style="border-top:none; padding-top:8px;">
       <input type="text" id="tripPlace" placeholder="장소 (예: 오사카)" style="width:120px">
       <input type="date" id="tripDate" style="width:150px">
       <input type="number" id="tripPeople" placeholder="인원" style="width:70px" min="1">
@@ -549,6 +557,7 @@ function render(){
   }).join('');
 
   renderStub(rows);
+  populateTripRouteSelect();
   renderTrips();
 }
 
@@ -630,6 +639,18 @@ function tripYear(t){
   return t.date ? t.date.slice(0,4) : '날짜 미상';
 }
 
+function populateTripRouteSelect(){
+  const sel = document.getElementById('tripRouteSelect');
+  const prevValue = sel.value;
+  const sorted = [...state].sort((a,b)=> a.region.localeCompare(b.region) || a.route.localeCompare(b.route));
+  sel.innerHTML = '<option value="">직접 입력</option>' +
+    sorted.map(r => {
+      const flightMiles = Math.round(r.mileage * classMult);
+      return `<option value="${r.id}">${r.region} · ${r.route} — ${fmt(flightMiles)}마일</option>`;
+    }).join('');
+  if(sorted.some(r=>String(r.id)===prevValue)) sel.value = prevValue;
+}
+
 function renderTrips(){
   const rows = computedTrips();
 
@@ -701,6 +722,7 @@ function addTrip(){
   document.getElementById('tripPeople').value = '';
   document.getElementById('tripPricePerPerson').value = '';
   document.getElementById('tripMilePerPerson').value = '';
+  document.getElementById('tripRouteSelect').value = '';
   saveState();
   render();
 }
@@ -725,6 +747,19 @@ document.getElementById('cardRate').addEventListener('input', (e)=>{
   cardRate = Number(e.target.value) || 0;
   saveState();
   render();
+});
+
+document.getElementById('tripRouteSelect').addEventListener('change', (e)=>{
+  const id = e.target.value;
+  if(id === ''){ return; }
+  const r = state.find(r => String(r.id) === id);
+  if(!r) return;
+  const flightMiles = Math.round(r.mileage * classMult);
+  document.getElementById('tripMilePerPerson').value = flightMiles;
+  const placeInput = document.getElementById('tripPlace');
+  if(!placeInput.value.trim()){
+    placeInput.value = r.route.replace(/^인천-/, '');
+  }
 });
 
 document.getElementById('yearFilter').addEventListener('change', (e)=>{
