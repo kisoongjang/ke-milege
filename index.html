@@ -250,6 +250,11 @@
     color:var(--bad); font-size:11.5px; margin-top:10px; min-height:14px;
   }
 
+  #tabBar{
+    overflow-x:auto; overflow-y:hidden; max-width:100%; -webkit-overflow-scrolling:touch;
+  }
+  #tabBar button{ flex-shrink:0; }
+
   @media (max-width: 640px){
     .stub{ flex-direction:column; }
     .stub-divider{ display:none; }
@@ -272,6 +277,14 @@
 
 <div id="appContent" style="display:none;">
 <div class="wrap">
+
+  <div class="seg" id="tabBar" style="margin-bottom:18px;">
+    <button data-tab="tabCalc" class="active">마성비 계산기</button>
+    <button data-tab="tabTrips">여행 기록</button>
+    <button data-tab="tabAward">특전항공권 현황</button>
+  </div>
+
+  <div id="tabCalc" class="tabpanel">
 
   <header class="hero">
     <div class="eyebrow">SKYPASS · COST PER MILE</div>
@@ -337,6 +350,10 @@
     표의 <b>왕복 기본마일</b>은 실제 대권거리 기반 추정치이며 셀을 클릭해 직접 수정할 수 있습니다. 항공권 가격은 <b>왕복 실결제 총액(원)</b>을 넣어주세요. <b>총 적립마일</b>은 (기본마일×좌석등급 배수)로 계산되는 <b>탑승 적립</b>에, (가격÷1,000원×카드 적립률)로 계산되는 <b>카드 적립</b>을 더한 값이며, 원/마일도 이 총 적립마일 기준으로 계산됩니다. 상단 "카드 적립" 값을 본인 카드 실제 적립률에 맞게 바꿔주세요. 초록색은 현재 입력된 노선 중 상위 30% 가성비, 빨간색은 하위 30%입니다.
   </p>
 
+  </div>
+
+  <div id="tabTrips" class="tabpanel" style="display:none;">
+
   <header class="hero" style="margin-top:4px;">
     <div class="eyebrow">TRIP LOG · 다녀온 이력</div>
     <h1 style="font-size:22px;">여행 기록</h1>
@@ -387,6 +404,79 @@
         <tbody id="tripTbody"></tbody>
       </table>
     </div>
+  </div>
+
+  </div>
+
+  <div id="tabAward" class="tabpanel" style="display:none;">
+
+  <header class="hero">
+    <div class="eyebrow">SKYPASS · AWARD AVAILABILITY</div>
+    <h1 style="font-size:22px;">특전항공권 현황</h1>
+    <p>보유 마일리지(본인 + 가족 합산)로 지금 예약 가능한 대한항공 보너스 항공권 지역과 좌석 등급을 보여줍니다. 왕복·편도, 평수기·성수기 기준 공제 마일리지는 대한항공 공식 기준표 기반입니다.</p>
+  </header>
+
+  <div class="panel">
+    <div class="add-row" style="border-top:none; padding-top:4px;">
+      <input type="text" id="milePersonName" placeholder="이름 (예: 나)" style="width:110px">
+      <input type="number" id="milePersonAmount" placeholder="보유 마일리지" style="width:130px">
+      <button onclick="addMilePerson()">+ 추가</button>
+    </div>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>이름</th>
+            <th>보유 마일리지</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="milePersonTbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div id="mileTotalStub"></div>
+
+  <div class="panel">
+    <div class="controls-row">
+      <div class="field">
+        <label>기준</label>
+        <div class="seg" id="awardTripSeg">
+          <button data-triptype="round" class="active">왕복</button>
+          <button data-triptype="oneway">편도</button>
+        </div>
+      </div>
+      <div class="field">
+        <label>시즌</label>
+        <div class="seg" id="awardSeasonSeg">
+          <button data-season="off" class="active">평수기</button>
+          <button data-season="peak">성수기</button>
+        </div>
+      </div>
+    </div>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>지역</th>
+            <th style="text-align:right;">이코노미 필요마일</th>
+            <th></th>
+            <th style="text-align:right;">프레스티지 필요마일</th>
+            <th></th>
+            <th style="text-align:right;">일등석 필요마일</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="awardTbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <p class="hint">
+    공제 마일리지는 대한민국 출발 기준 대한항공 공식표를 반영했으며(2024~2025년 기준, 변경될 수 있음), 왕복은 편도 마일을 그대로 2배로 계산한 값입니다(가는 편·오는 편 시즌이 다르면 실제 공제량은 달라질 수 있어요). 일등석이 없는 지역은 "–"로 표시됩니다. 초록 배지는 현재 합산 마일리지로 예약 가능, 빨간 배지는 부족한 마일리지 양을 보여줍니다.
+  </p>
+
   </div>
 
   <footer>KOREAN AIR · SKYPASS MILEAGE VALUE TOOL</footer>
@@ -446,6 +536,18 @@ let tripSortKey = 'date';
 let tripSortDir = -1;
 let yearFilter = 'all';
 
+let milePeople = [];
+let awardTripType = 'round';
+let awardSeason = 'off';
+
+const AWARD_CHART = [
+  {region:"대한민국 (국내선)", off:{eco:5000, pres:6000, first:null}, peak:{eco:7500, pres:9000, first:null}},
+  {region:"일본/중국/동북아시아", off:{eco:15000, pres:22500, first:32500}, peak:{eco:22500, pres:32500, first:47500}},
+  {region:"동남아시아/괌", off:{eco:20000, pres:35000, first:45000}, peak:{eco:30000, pres:52500, first:67500}},
+  {region:"서남아시아/타슈켄트", off:{eco:25000, pres:45000, first:57500}, peak:{eco:37500, pres:67500, first:87500}},
+  {region:"북미/유럽/중동/대양주", off:{eco:35000, pres:62500, first:80000}, peak:{eco:52500, pres:92500, first:120000}},
+];
+
 const STORAGE_KEY = 'ke-mileage-calculator-v1';
 const SYNC_URL = 'https://script.google.com/macros/s/AKfycbxDwRT9MrIutXtjw0EQsVIQP575_-7ZHK30tKm40twb0AGSGFKEH3QnADzxPTppH1hl/exec';
 const AUTH_SESSION_KEY = 'ke-mileage-auth-pw';
@@ -465,7 +567,8 @@ function buildPayload(){
   return {
     classMult, cardRate,
     routes: state.map(r => ({id:r.id, region:r.region, route:r.route, mileage:r.mileage, price:r.price})),
-    trips: tripState
+    trips: tripState,
+    milePeople: milePeople
   };
 }
 
@@ -485,6 +588,9 @@ function applyPayload(payload){
   }
   if(Array.isArray(payload.trips)){
     tripState = payload.trips;
+  }
+  if(Array.isArray(payload.milePeople)){
+    milePeople = payload.milePeople;
   }
 }
 
@@ -616,6 +722,8 @@ function render(){
 
   renderStub(rows);
   renderTrips();
+  renderMilePeople();
+  renderAwardTable();
 }
 
 function renderStub(rows){
@@ -799,6 +907,116 @@ function deleteTrip(id){
   saveState();
   render();
 }
+
+function addMilePerson(){
+  const name = document.getElementById('milePersonName').value.trim();
+  const amount = Number(document.getElementById('milePersonAmount').value);
+  if(!name || !amount){ return; }
+  const id = milePeople.length ? Math.max(...milePeople.map(p=>p.id)) + 1 : 1;
+  milePeople.push({id, name, amount});
+  document.getElementById('milePersonName').value = '';
+  document.getElementById('milePersonAmount').value = '';
+  saveState();
+  render();
+}
+
+function deleteMilePerson(id){
+  milePeople = milePeople.filter(p => p.id !== id);
+  saveState();
+  render();
+}
+
+function renderMilePeople(){
+  const tbody = document.getElementById('milePersonTbody');
+  if(!tbody) return;
+  if(milePeople.length === 0){
+    tbody.innerHTML = `<tr><td colspan="3" class="empty-cpm" style="padding:14px 8px;">아직 등록된 마일리지가 없어요. 본인과 가족의 보유 마일리지를 추가해보세요.</td></tr>`;
+  } else {
+    tbody.innerHTML = milePeople.map(p => `
+      <tr>
+        <td class="route">${p.name}</td>
+        <td class="mono" style="text-align:right;">${fmt(p.amount)}마일</td>
+        <td><button onclick="deleteMilePerson(${p.id})" style="background:none;border:none;color:var(--bad);cursor:pointer;font-size:15px;">✕</button></td>
+      </tr>
+    `).join('');
+  }
+  renderMileTotalStub();
+}
+
+function renderMileTotalStub(){
+  const el = document.getElementById('mileTotalStub');
+  if(!el) return;
+  const total = milePeople.reduce((s,p)=>s+p.amount, 0);
+  el.innerHTML = `
+    <div class="stub">
+      <div class="stub-main">
+        <div class="eyebrow2">합산 마일리지</div>
+        <p class="best-route">${fmt(total)}마일</p>
+        <p class="best-sub">${milePeople.map(p=>p.name).join(' + ') || '등록된 인원 없음'}</p>
+      </div>
+    </div>
+  `;
+}
+
+function renderAwardTable(){
+  const tbody = document.getElementById('awardTbody');
+  if(!tbody) return;
+  const total = milePeople.reduce((s,p)=>s+p.amount, 0);
+  const mult = awardTripType === 'round' ? 2 : 1;
+
+  function cell(need){
+    if(need === null) return `<td colspan="2" class="empty-cpm" style="text-align:center;">–</td>`;
+    const required = need * mult;
+    if(total >= required){
+      return `<td class="mono" style="text-align:right;">${fmt(required)}</td><td><span class="badge-good">가능</span></td>`;
+    } else {
+      return `<td class="mono" style="text-align:right; color:var(--text-dim);">${fmt(required)}</td><td><span class="badge-bad">${fmt(required-total)} 부족</span></td>`;
+    }
+  }
+
+  tbody.innerHTML = AWARD_CHART.map(r => {
+    const chart = awardSeason === 'off' ? r.off : r.peak;
+    return `
+      <tr>
+        <td class="route">${r.region}</td>
+        ${cell(chart.eco)}
+        ${cell(chart.pres)}
+        ${cell(chart.first)}
+      </tr>
+    `;
+  }).join('');
+}
+
+document.getElementById('milePersonAmount').addEventListener('keydown', (e)=>{
+  if(e.key === 'Enter') addMilePerson();
+});
+
+document.getElementById('awardTripSeg').addEventListener('click', (e)=>{
+  const btn = e.target.closest('button');
+  if(!btn) return;
+  document.querySelectorAll('#awardTripSeg button').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  awardTripType = btn.dataset.triptype;
+  renderAwardTable();
+});
+
+document.getElementById('awardSeasonSeg').addEventListener('click', (e)=>{
+  const btn = e.target.closest('button');
+  if(!btn) return;
+  document.querySelectorAll('#awardSeasonSeg button').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  awardSeason = btn.dataset.season;
+  renderAwardTable();
+});
+
+document.getElementById('tabBar').addEventListener('click', (e)=>{
+  const btn = e.target.closest('button');
+  if(!btn) return;
+  document.querySelectorAll('#tabBar button').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('.tabpanel').forEach(p => p.style.display = 'none');
+  document.getElementById(btn.dataset.tab).style.display = 'block';
+});
 
 document.getElementById('classSeg').addEventListener('click', (e)=>{
   const btn = e.target.closest('button');
