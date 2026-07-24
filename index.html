@@ -220,6 +220,7 @@
     <div class="eyebrow">SKYPASS · COST PER MILE</div>
     <h1>마성비 계산기</h1>
     <p>대한항공 왕복 노선의 기본 적립 마일과 실제 항공권 가격을 넣으면, 마일리지 1마일을 얻는 데 든 원화 비용(원/마일)을 계산합니다. 숫자가 낮을수록 마일리지 적립 가성비가 좋은 것입니다.</p>
+    <div id="syncStatus" style="margin-top:12px; font-family:'IBM Plex Mono', monospace; font-size:11.5px; color:var(--text-dim);">동기화 확인 중…</div>
   </header>
 
   <div id="stubSummary"></div>
@@ -330,6 +331,92 @@ let sortKey = null;
 let sortDir = 1;
 let search = "";
 
+const STORAGE_KEY = 'ke-mileage-calculator-v1';
+const SYNC_URL = 'https://script.google.com/macros/s/AKfycbxDwRT9MrIutXtjw0EQsVIQP575_-7ZHK30tKm40twb0AGSGFKEH3QnADzxPTppH1hl/exec';
+let saveTimer = null;
+
+function setSyncStatus(msg){
+  const el = document.getElementById('syncStatus');
+  if(el) el.textContent = msg;
+}
+
+function buildPayload(){
+  return {
+    classMult, cardRate,
+    routes: state.map(r => ({id:r.id, region:r.region, route:r.route, mileage:r.mileage, price:r.price}))
+  };
+}
+
+function applyPayload(payload){
+  if(!payload) return;
+  if(typeof payload.classMult === 'number') classMult = payload.classMult;
+  if(typeof payload.cardRate === 'number') cardRate = payload.cardRate;
+  if(Array.isArray(payload.routes)){
+    const byId = new Map(payload.routes.map(r=>[r.id, r]));
+    state = state.map(r => byId.has(r.id) ? {...r, mileage: byId.get(r.id).mileage, price: byId.get(r.id).price} : r);
+    const defaultIds = new Set(state.map(r=>r.id));
+    payload.routes.forEach(r=>{
+      if(!defaultIds.has(r.id)){
+        state.push({id:r.id, region:r.region, route:r.route, mileage:r.mileage, price:r.price});
+      }
+    });
+  }
+}
+
+function saveState(){
+  const payload = buildPayload();
+  // local cache first, so nothing is lost even if the network call fails
+  try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(payload)); }catch(e){}
+
+  setSyncStatus('저장 중…');
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(()=>{
+    fetch(SYNC_URL, {
+      method:'POST',
+      headers: {'Content-Type':'text/plain;charset=utf-8'},
+      body: JSON.stringify(payload)
+    }).then(res=>{
+      if(!res.ok) throw new Error('bad status');
+      setSyncStatus('✓ 저장됨 · ' + new Date().toLocaleTimeString('ko-KR'));
+    }).catch(()=>{
+      setSyncStatus('⚠ 클라우드 저장 실패 (이 기기에만 저장됨)');
+    });
+  }, 600);
+}
+
+function loadState(){
+  // 1) show local cache immediately so the UI isn't empty while the network call runs
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(raw) applyPayload(JSON.parse(raw));
+  }catch(e){}
+  document.getElementById('cardRate').value = cardRate;
+  document.querySelectorAll('#classSeg button').forEach(b=>{
+    b.classList.toggle('active', Number(b.dataset.mult) === classMult);
+  });
+  render();
+
+  // 2) then fetch the latest from the cloud sheet and overwrite if available
+  fetch(SYNC_URL)
+    .then(res => res.json())
+    .then(payload => {
+      if(payload && Object.keys(payload).length){
+        applyPayload(payload);
+        try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(payload)); }catch(e){}
+      }
+      setSyncStatus('✓ 클라우드와 동기화됨');
+      document.getElementById('cardRate').value = cardRate;
+      document.querySelectorAll('#classSeg button').forEach(b=>{
+        b.classList.toggle('active', Number(b.dataset.mult) === classMult);
+      });
+      render();
+    })
+    .catch(()=>{
+      setSyncStatus('⚠ 클라우드 연결 실패 (이 기기 저장값만 표시)');
+      render();
+    });
+}
+
 function fmt(n){ return n.toLocaleString('ko-KR'); }
 
 function computedRows(){
@@ -431,11 +518,13 @@ function renderStub(rows){
 function updateMileage(id, val){
   const r = state.find(r=>r.id===id);
   r.mileage = Number(val) || r.mileage;
+  saveState();
   render();
 }
 function updatePrice(id, val){
   const r = state.find(r=>r.id===id);
   r.price = Number(val) || null;
+  saveState();
   render();
 }
 function addRoute(){
@@ -448,6 +537,7 @@ function addRoute(){
   document.getElementById('newRegion').value = '';
   document.getElementById('newRoute').value = '';
   document.getElementById('newMileage').value = '';
+  saveState();
   render();
 }
 
@@ -457,11 +547,13 @@ document.getElementById('classSeg').addEventListener('click', (e)=>{
   document.querySelectorAll('#classSeg button').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
   classMult = Number(btn.dataset.mult);
+  saveState();
   render();
 });
 
 document.getElementById('cardRate').addEventListener('input', (e)=>{
   cardRate = Number(e.target.value) || 0;
+  saveState();
   render();
 });
 
@@ -480,7 +572,7 @@ document.querySelectorAll('th.sortable').forEach(th=>{
   });
 });
 
-render();
+loadState();
 </script>
 </body>
 </html>
