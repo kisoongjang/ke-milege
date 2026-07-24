@@ -206,6 +206,20 @@
     margin-top:26px; font-family:'IBM Plex Mono', monospace;
   }
 
+  .year-header td{
+    background: var(--gold-soft);
+    color: var(--gold);
+    font-family:'IBM Plex Mono', monospace;
+    font-weight:700;
+    font-size:12px;
+    letter-spacing:.04em;
+    padding:8px 8px;
+    border-bottom:1px solid var(--line-strong);
+  }
+  .year-header .year-sub{
+    color: var(--text-dim); font-weight:400; margin-left:10px; font-size:11.5px;
+  }
+
   @media (max-width: 640px){
     .stub{ flex-direction:column; }
     .stub-divider{ display:none; }
@@ -280,6 +294,50 @@
     표의 <b>왕복 기본마일</b>은 실제 대권거리 기반 추정치이며 셀을 클릭해 직접 수정할 수 있습니다. 항공권 가격은 <b>왕복 실결제 총액(원)</b>을 넣어주세요. <b>총 적립마일</b>은 (기본마일×좌석등급 배수)로 계산되는 <b>탑승 적립</b>에, (가격÷1,000원×카드 적립률)로 계산되는 <b>카드 적립</b>을 더한 값이며, 원/마일도 이 총 적립마일 기준으로 계산됩니다. 상단 "카드 적립" 값을 본인 카드 실제 적립률에 맞게 바꿔주세요. 초록색은 현재 입력된 노선 중 상위 30% 가성비, 빨간색은 하위 30%입니다.
   </p>
 
+  <header class="hero" style="margin-top:4px;">
+    <div class="eyebrow">TRIP LOG · 다녀온 이력</div>
+    <h1 style="font-size:22px;">여행 기록</h1>
+    <p>실제로 다녀온 여행의 인원, 1인당 항공권 가격, 적립 마일리지를 기록해두고 마성비를 비교합니다. 카드 적립은 결제 전체 금액 기준으로 한 번만 계산되고(인원수와 무관), 마성비도 전체 가격 ÷ 전체 적립마일 기준으로 계산됩니다.</p>
+  </header>
+
+  <div class="panel">
+    <div class="add-row" style="border-top:none; padding-top:4px;">
+      <input type="text" id="tripPlace" placeholder="장소 (예: 오사카)" style="width:120px">
+      <input type="date" id="tripDate" style="width:150px">
+      <input type="number" id="tripPeople" placeholder="인원" style="width:70px" min="1">
+      <input type="number" id="tripPricePerPerson" placeholder="1인당 항공권 가격(원)" style="width:150px">
+      <input type="number" id="tripMilePerPerson" placeholder="1인당 탑승 적립마일" style="width:150px">
+      <button onclick="addTrip()">+ 여행 기록 추가</button>
+    </div>
+
+    <div class="field" style="margin:4px 4px 12px;">
+      <label>연도 필터</label>
+      <select id="yearFilter" style="background: rgba(255,255,255,0.03); border:1px solid var(--line-strong); color:var(--text); border-radius:9px; padding:8px 11px; font-family:'IBM Plex Mono', monospace; font-size:13px;">
+        <option value="all">전체 연도</option>
+      </select>
+    </div>
+
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th class="sortable" data-tripkey="date">날짜</th>
+            <th class="sortable" data-tripkey="place">장소</th>
+            <th class="sortable" data-tripkey="people">인원</th>
+            <th class="sortable" data-tripkey="pricePerPerson">1인당 가격</th>
+            <th class="sortable" data-tripkey="totalPrice">전체 가격</th>
+            <th class="sortable" data-tripkey="totalFlightMiles">탑승 적립(전체)</th>
+            <th class="sortable" data-tripkey="cardMiles">카드 적립(전체)</th>
+            <th class="sortable" data-tripkey="totalMiles">전체 적립마일</th>
+            <th class="sortable" data-tripkey="cpm">마성비(원/마일)</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="tripTbody"></tbody>
+      </table>
+    </div>
+  </div>
+
   <footer>KOREAN AIR · SKYPASS MILEAGE VALUE TOOL</footer>
 </div>
 
@@ -331,6 +389,11 @@ let sortKey = null;
 let sortDir = 1;
 let search = "";
 
+let tripState = [];
+let tripSortKey = 'date';
+let tripSortDir = -1;
+let yearFilter = 'all';
+
 const STORAGE_KEY = 'ke-mileage-calculator-v1';
 const SYNC_URL = 'https://script.google.com/macros/s/AKfycbxDwRT9MrIutXtjw0EQsVIQP575_-7ZHK30tKm40twb0AGSGFKEH3QnADzxPTppH1hl/exec';
 let saveTimer = null;
@@ -343,7 +406,8 @@ function setSyncStatus(msg){
 function buildPayload(){
   return {
     classMult, cardRate,
-    routes: state.map(r => ({id:r.id, region:r.region, route:r.route, mileage:r.mileage, price:r.price}))
+    routes: state.map(r => ({id:r.id, region:r.region, route:r.route, mileage:r.mileage, price:r.price})),
+    trips: tripState
   };
 }
 
@@ -360,6 +424,9 @@ function applyPayload(payload){
         state.push({id:r.id, region:r.region, route:r.route, mileage:r.mileage, price:r.price});
       }
     });
+  }
+  if(Array.isArray(payload.trips)){
+    tripState = payload.trips;
   }
 }
 
@@ -482,6 +549,7 @@ function render(){
   }).join('');
 
   renderStub(rows);
+  renderTrips();
 }
 
 function renderStub(rows){
@@ -541,6 +609,108 @@ function addRoute(){
   render();
 }
 
+function computedTrips(){
+  let rows = tripState.map(t => {
+    const totalPrice = t.pricePerPerson * t.people;
+    const totalFlightMiles = t.milePerPerson * t.people;
+    const cardMiles = Math.floor(totalPrice / 1000) * cardRate;
+    const totalMiles = totalFlightMiles + cardMiles;
+    const cpm = totalMiles > 0 ? (totalPrice / totalMiles) : null;
+    return {...t, totalPrice, totalFlightMiles, cardMiles, totalMiles, cpm};
+  });
+  rows.sort((a,b)=>{
+    let av = a[tripSortKey], bv = b[tripSortKey];
+    if(typeof av === 'string') return av.localeCompare(bv) * tripSortDir;
+    return (av - bv) * tripSortDir;
+  });
+  return rows;
+}
+
+function tripYear(t){
+  return t.date ? t.date.slice(0,4) : '날짜 미상';
+}
+
+function renderTrips(){
+  const rows = computedTrips();
+
+  // populate the year filter dropdown
+  const years = Array.from(new Set(rows.map(tripYear))).sort((a,b)=> b.localeCompare(a));
+  const yearSelect = document.getElementById('yearFilter');
+  const prevValue = yearFilter;
+  yearSelect.innerHTML = '<option value="all">전체 연도</option>' +
+    years.map(y => `<option value="${y}">${y}</option>`).join('');
+  yearSelect.value = years.includes(prevValue) ? prevValue : 'all';
+  yearFilter = yearSelect.value;
+
+  const tbody = document.getElementById('tripTbody');
+  if(rows.length === 0){
+    tbody.innerHTML = `<tr><td colspan="10" class="empty-cpm" style="padding:16px 8px;">아직 기록된 여행이 없어요. 위에서 추가해보세요.</td></tr>`;
+    return;
+  }
+
+  const filtered = yearFilter === 'all' ? rows : rows.filter(t => tripYear(t) === yearFilter);
+  if(filtered.length === 0){
+    tbody.innerHTML = `<tr><td colspan="10" class="empty-cpm" style="padding:16px 8px;">해당 연도의 기록이 없어요.</td></tr>`;
+    return;
+  }
+
+  // group by year, preserving the years' relative order (desc) from the dropdown
+  const groupYears = Array.from(new Set(filtered.map(tripYear)));
+  let html = '';
+  groupYears.forEach(y=>{
+    const yearRows = filtered.filter(t => tripYear(t) === y);
+    const totalTrips = yearRows.length;
+    const totalPeople = yearRows.reduce((s,t)=>s+t.people, 0);
+    const totalMiles = yearRows.reduce((s,t)=>s+t.totalMiles, 0);
+    const totalPrice = yearRows.reduce((s,t)=>s+t.totalPrice, 0);
+    const avgCpm = totalMiles > 0 ? totalPrice / totalMiles : 0;
+    html += `
+      <tr class="year-header">
+        <td colspan="10">${y}년<span class="year-sub">여행 ${totalTrips}건 · 총 ${totalPeople}명 · 총 적립 ${fmt(Math.round(totalMiles))}마일 · 평균 마성비 ${fmt(Math.round(avgCpm))}원/마일</span></td>
+      </tr>
+    `;
+    html += yearRows.map(t => `
+      <tr>
+        <td class="mono">${t.date || '-'}</td>
+        <td class="route">${t.place}</td>
+        <td class="mono">${t.people}명</td>
+        <td class="mono" style="text-align:right;">${fmt(t.pricePerPerson)}원</td>
+        <td class="mono" style="text-align:right; font-weight:600;">${fmt(t.totalPrice)}원</td>
+        <td class="mono" style="text-align:right;">${fmt(t.totalFlightMiles)}</td>
+        <td class="mono" style="text-align:right; color:var(--gold);">+${fmt(t.cardMiles)}</td>
+        <td class="mono" style="text-align:right; font-weight:700;">${fmt(t.totalMiles)}</td>
+        <td class="cpm">${t.cpm !== null ? fmt(Math.round(t.cpm)) + '<span class="unit">원/마일</span>' : '-'}</td>
+        <td><button onclick="deleteTrip(${t.id})" style="background:none;border:none;color:var(--bad);cursor:pointer;font-size:15px;">✕</button></td>
+      </tr>
+    `).join('');
+  });
+  tbody.innerHTML = html;
+}
+
+function addTrip(){
+  const place = document.getElementById('tripPlace').value.trim();
+  const date = document.getElementById('tripDate').value;
+  const people = Number(document.getElementById('tripPeople').value) || 1;
+  const pricePerPerson = Number(document.getElementById('tripPricePerPerson').value);
+  const milePerPerson = Number(document.getElementById('tripMilePerPerson').value);
+  if(!place || !pricePerPerson || !milePerPerson){ return; }
+  const id = tripState.length ? Math.max(...tripState.map(t=>t.id)) + 1 : 1;
+  tripState.push({id, place, date, people, pricePerPerson, milePerPerson});
+  document.getElementById('tripPlace').value = '';
+  document.getElementById('tripDate').value = '';
+  document.getElementById('tripPeople').value = '';
+  document.getElementById('tripPricePerPerson').value = '';
+  document.getElementById('tripMilePerPerson').value = '';
+  saveState();
+  render();
+}
+
+function deleteTrip(id){
+  tripState = tripState.filter(t => t.id !== id);
+  saveState();
+  render();
+}
+
 document.getElementById('classSeg').addEventListener('click', (e)=>{
   const btn = e.target.closest('button');
   if(!btn) return;
@@ -557,6 +727,11 @@ document.getElementById('cardRate').addEventListener('input', (e)=>{
   render();
 });
 
+document.getElementById('yearFilter').addEventListener('change', (e)=>{
+  yearFilter = e.target.value;
+  renderTrips();
+});
+
 document.getElementById('searchInput').addEventListener('input', (e)=>{
   search = e.target.value.trim();
   render();
@@ -564,11 +739,18 @@ document.getElementById('searchInput').addEventListener('input', (e)=>{
 
 document.querySelectorAll('th.sortable').forEach(th=>{
   th.addEventListener('click', ()=>{
-    const key = th.dataset.key;
-    if(sortKey === key){ sortDir *= -1; } else { sortKey = key; sortDir = 1; }
-    document.querySelectorAll('th.sortable .arrow').forEach(a=>a.textContent='');
-    th.querySelector('.arrow').textContent = sortDir === 1 ? '▲' : '▼';
-    render();
+    if(th.dataset.key){
+      const key = th.dataset.key;
+      if(sortKey === key){ sortDir *= -1; } else { sortKey = key; sortDir = 1; }
+      document.querySelectorAll('th.sortable .arrow').forEach(a=>a.textContent='');
+      const arrowEl = th.querySelector('.arrow');
+      if(arrowEl) arrowEl.textContent = sortDir === 1 ? '▲' : '▼';
+      render();
+    } else if(th.dataset.tripkey){
+      const key = th.dataset.tripkey;
+      if(tripSortKey === key){ tripSortDir *= -1; } else { tripSortKey = key; tripSortDir = 1; }
+      render();
+    }
   });
 });
 
