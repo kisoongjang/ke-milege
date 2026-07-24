@@ -394,7 +394,7 @@
             <th class="sortable" data-tripkey="people">인원</th>
             <th class="sortable" data-tripkey="pricePerPerson">1인당 가격</th>
             <th class="sortable" data-tripkey="totalPrice">전체 가격</th>
-            <th class="sortable" data-tripkey="totalFlightMiles">탑승 적립(전체)</th>
+            <th class="sortable" data-tripkey="totalFlightMiles">1인당 탑승 적립</th>
             <th class="sortable" data-tripkey="cardMiles">카드 적립(전체)</th>
             <th class="sortable" data-tripkey="totalMiles">전체 적립마일</th>
             <th class="sortable" data-tripkey="cpm">마성비(원/마일)</th>
@@ -858,7 +858,7 @@ function renderTrips(){
   }
 
   // group by year, preserving the years' relative order (desc) from the dropdown
-  const groupYears = Array.from(new Set(filtered.map(tripYear)));
+  const groupYears = Array.from(new Set(filtered.map(tripYear))).sort((a,b)=> b.localeCompare(a));
   let html = '';
   groupYears.forEach(y=>{
     const yearRows = filtered.filter(t => tripYear(t) === y);
@@ -876,12 +876,12 @@ function renderTrips(){
     `;
     html += yearRows.map(t => `
       <tr>
-        <td class="mono">${t.date || '-'}</td>
-        <td class="route">${t.place}</td>
-        <td class="mono">${t.people}명</td>
-        <td class="mono" style="text-align:right;">${fmt(t.pricePerPerson)}원</td>
+        <td class="mono"><input type="date" value="${t.date || ''}" style="width:130px;" onchange="updateTrip(${t.id}, 'date', this.value)"></td>
+        <td class="mono"><input type="text" value="${t.place}" style="width:100px;" onchange="updateTrip(${t.id}, 'place', this.value)"></td>
+        <td class="mono"><input type="number" value="${t.people}" min="1" style="width:55px; text-align:right;" onchange="updateTrip(${t.id}, 'people', this.value)"></td>
+        <td class="mono"><input type="number" value="${t.pricePerPerson}" style="width:100px; text-align:right;" onchange="updateTrip(${t.id}, 'pricePerPerson', this.value)"></td>
         <td class="mono" style="text-align:right; font-weight:600;">${fmt(t.totalPrice)}원</td>
-        <td class="mono" style="text-align:right;">${fmt(t.totalFlightMiles)}</td>
+        <td class="mono"><input type="number" value="${t.milePerPerson}" style="width:100px; text-align:right;" onchange="updateTrip(${t.id}, 'milePerPerson', this.value)"></td>
         <td class="mono" style="text-align:right; color:var(--gold);">+${fmt(t.cardMiles)}</td>
         <td class="mono" style="text-align:right; font-weight:700;">${fmt(t.totalMiles)}</td>
         <td class="cpm">${t.cpm !== null ? fmt(Math.round(t.cpm)) + '<span class="unit">원/마일</span>' : '-'}</td>
@@ -890,6 +890,18 @@ function renderTrips(){
     `).join('');
   });
   tbody.innerHTML = html;
+}
+
+function updateTrip(id, field, value){
+  const t = tripState.find(t => t.id === id);
+  if(!t) return;
+  if(field === 'place' || field === 'date'){
+    t[field] = value;
+  } else {
+    t[field] = Number(value) || 0;
+  }
+  saveState();
+  render();
 }
 
 function addTrip(){
@@ -907,6 +919,8 @@ function addTrip(){
   document.getElementById('tripPricePerPerson').value = '';
   document.getElementById('tripMilePerPerson').value = '';
   document.getElementById('tripRouteSelect').value = '';
+  tripSortKey = 'date';
+  tripSortDir = -1;
   saveState();
   render();
 }
@@ -943,13 +957,21 @@ function renderMilePeople(){
   } else {
     tbody.innerHTML = milePeople.map(p => `
       <tr>
-        <td class="route">${p.name}</td>
-        <td class="mono" style="text-align:right;">${fmt(p.amount)}마일</td>
+        <td class="mono"><input type="text" value="${p.name}" style="width:90px;" onchange="updateMilePerson(${p.id}, 'name', this.value)"></td>
+        <td class="mono" style="text-align:right;"><input type="number" value="${p.amount}" style="width:110px; text-align:right;" onchange="updateMilePerson(${p.id}, 'amount', this.value)"></td>
         <td><button onclick="deleteMilePerson(${p.id})" style="background:none;border:none;color:var(--bad);cursor:pointer;font-size:15px;">✕</button></td>
       </tr>
     `).join('');
   }
   renderMileTotalStub();
+}
+
+function updateMilePerson(id, field, value){
+  const p = milePeople.find(p => p.id === id);
+  if(!p) return;
+  p[field] = field === 'amount' ? (Number(value) || 0) : value;
+  saveState();
+  render();
 }
 
 function renderMileTotalStub(){
