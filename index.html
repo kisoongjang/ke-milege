@@ -454,6 +454,10 @@
           <button data-season="peak">성수기</button>
         </div>
       </div>
+      <div class="field">
+        <label>인원</label>
+        <input type="number" id="awardPeople" value="1" min="1" style="width:70px; text-align:center;">
+      </div>
     </div>
     <div class="table-scroll">
       <table>
@@ -474,7 +478,7 @@
   </div>
 
   <p class="hint">
-    공제 마일리지는 대한민국 출발 기준 대한항공 공식표를 반영했으며(2024~2025년 기준, 변경될 수 있음), 왕복은 편도 마일을 그대로 2배로 계산한 값입니다(가는 편·오는 편 시즌이 다르면 실제 공제량은 달라질 수 있어요). 일등석이 없는 지역은 "–"로 표시됩니다. 초록 배지는 현재 합산 마일리지로 예약 가능, 빨간 배지는 부족한 마일리지 양을 보여줍니다.
+    공제 마일리지는 대한민국 출발 기준 대한항공 공식표를 반영했으며(2024~2025년 기준, 변경될 수 있음), 왕복은 편도 마일을 그대로 2배로 계산한 값입니다(가는 편·오는 편 시즌이 다르면 실제 공제량은 달라질 수 있어요). <b>필요 마일은 인원수만큼 곱해서 계산됩니다</b>(보너스 항공권은 1인당 별도로 발권되기 때문). 일등석이 없는 지역은 "–"로 표시됩니다. 초록 배지는 현재 합산 마일리지로 예약 가능, 빨간 배지는 부족한 마일리지 양을 보여줍니다.
   </p>
 
   </div>
@@ -539,6 +543,7 @@ let yearFilter = 'all';
 let milePeople = [];
 let awardTripType = 'round';
 let awardSeason = 'off';
+let awardPeople = 1;
 
 const AWARD_CHART = [
   {region:"대한민국 (국내선)", off:{eco:5000, pres:6000, first:null}, peak:{eco:7500, pres:9000, first:null}},
@@ -568,7 +573,8 @@ function buildPayload(){
     classMult, cardRate,
     routes: state.map(r => ({id:r.id, region:r.region, route:r.route, mileage:r.mileage, price:r.price})),
     trips: tripState,
-    milePeople: milePeople
+    milePeople: milePeople,
+    awardPeople: awardPeople
   };
 }
 
@@ -576,6 +582,7 @@ function applyPayload(payload){
   if(!payload) return;
   if(typeof payload.classMult === 'number') classMult = payload.classMult;
   if(typeof payload.cardRate === 'number') cardRate = payload.cardRate;
+  if(typeof payload.awardPeople === 'number') awardPeople = payload.awardPeople;
   if(Array.isArray(payload.routes)){
     const byId = new Map(payload.routes.map(r=>[r.id, r]));
     state = state.map(r => byId.has(r.id) ? {...r, mileage: byId.get(r.id).mileage, price: byId.get(r.id).price} : r);
@@ -625,6 +632,7 @@ function loadState(){
     if(raw) applyPayload(JSON.parse(raw));
   }catch(e){}
   document.getElementById('cardRate').value = cardRate;
+  document.getElementById('awardPeople').value = awardPeople;
   document.querySelectorAll('#classSeg button').forEach(b=>{
     b.classList.toggle('active', Number(b.dataset.mult) === classMult);
   });
@@ -645,6 +653,7 @@ function loadState(){
       }
       setSyncStatus('✓ 클라우드와 동기화됨');
       document.getElementById('cardRate').value = cardRate;
+      document.getElementById('awardPeople').value = awardPeople;
       document.querySelectorAll('#classSeg button').forEach(b=>{
         b.classList.toggle('active', Number(b.dataset.mult) === classMult);
       });
@@ -962,11 +971,13 @@ function renderAwardTable(){
   const tbody = document.getElementById('awardTbody');
   if(!tbody) return;
   const total = milePeople.reduce((s,p)=>s+p.amount, 0);
-  const mult = awardTripType === 'round' ? 2 : 1;
+  const tripMult = awardTripType === 'round' ? 2 : 1;
+  const peopleMult = awardPeople || 1;
 
   function cell(need){
     if(need === null) return `<td colspan="2" class="empty-cpm" style="text-align:center;">–</td>`;
-    const required = need * mult;
+    const perPerson = need * tripMult;
+    const required = perPerson * peopleMult;
     if(total >= required){
       return `<td class="mono" style="text-align:right;">${fmt(required)}</td><td><span class="badge-good">가능</span></td>`;
     } else {
@@ -997,6 +1008,12 @@ document.getElementById('awardTripSeg').addEventListener('click', (e)=>{
   document.querySelectorAll('#awardTripSeg button').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
   awardTripType = btn.dataset.triptype;
+  renderAwardTable();
+});
+
+document.getElementById('awardPeople').addEventListener('input', (e)=>{
+  awardPeople = Number(e.target.value) || 1;
+  saveState();
   renderAwardTable();
 });
 
