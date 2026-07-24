@@ -747,12 +747,14 @@ function renderTrips(){
     const yearRows = filtered.filter(t => tripYear(t) === y);
     const totalTrips = yearRows.length;
     const totalPeople = yearRows.reduce((s,t)=>s+t.people, 0);
+    const totalFlightMiles = yearRows.reduce((s,t)=>s+t.totalFlightMiles, 0);
+    const totalCardMiles = yearRows.reduce((s,t)=>s+t.cardMiles, 0);
     const totalMiles = yearRows.reduce((s,t)=>s+t.totalMiles, 0);
     const totalPrice = yearRows.reduce((s,t)=>s+t.totalPrice, 0);
     const avgCpm = totalMiles > 0 ? totalPrice / totalMiles : 0;
     html += `
       <tr class="year-header">
-        <td colspan="10">${y}년<span class="year-sub">여행 ${totalTrips}건 · 총 ${totalPeople}명 · 총 적립 ${fmt(Math.round(totalMiles))}마일 · 평균 마성비 ${fmt(Math.round(avgCpm))}원/마일</span></td>
+        <td colspan="10">${y}년<span class="year-sub">여행 ${totalTrips}건 · 총 ${totalPeople}명 · 탑승적립 합계 ${fmt(Math.round(totalFlightMiles))}마일 · 카드적립 합계 ${fmt(Math.round(totalCardMiles))}마일 · 총 적립 ${fmt(Math.round(totalMiles))}마일 · 평균 마성비 ${fmt(Math.round(avgCpm))}원/마일</span></td>
       </tr>
     `;
     html += yearRows.map(t => `
